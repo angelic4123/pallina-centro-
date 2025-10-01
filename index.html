@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gioco Pallina e Cerchi</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .game-container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        canvas {
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            cursor: crosshair;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: linear-gradient(45deg, #ff6b6b, #ff8e53);
+            color: white;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            margin: 10px 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+        }
+
+        .instructions {
+            max-width: 700px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+        }
+
+        .leaderboard-modal, .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            color: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 1000;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .leaderboard-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            align-items: center;
+        }
+
+        .leaderboard-entry.rank-1 {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: #000;
+            font-weight: bold;
+        }
+
+        .leaderboard-entry.rank-2 {
+            background: linear-gradient(45deg, #C0C0C0, #A8A8A8);
+            color: #000;
+        }
+
+        .leaderboard-entry.rank-3 {
+            background: linear-gradient(45deg, #CD7F32, #B87333);
+            color: #000;
+        }
+
+        .rank {
+            font-size: 20px;
+            font-weight: bold;
+            min-width: 40px;
+        }
+
+        .player-name {
+            flex: 1;
+            text-align: left;
+            padding: 0 10px;
+        }
+
+        .player-score {
+            font-weight: bold;
+            min-width: 80px;
+            text-align: right;
+        }
+
+        input {
+            padding: 10px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            margin: 10px 0;
+            width: 80%;
+            max-width: 300px;
+        }
+
+        .close-btn {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 15px;
+            cursor: pointer;
+            display: inline-block;
+            margin-top: 15px;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .firebase-warning {
+            background: rgba(255, 200, 0, 0.2);
+            border: 2px solid rgba(255, 200, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="instructions">
+            <h2>🎯 Gioco Pallina e Cerchi</h2>
+            <p>Clicca per lanciare la pallina e colpisci i cerchi! Più precisione = più punti!</p>
+            <p><strong>🎯 Centro: 50pts | 🟢 Interno: 30pts | 🔵 Medio: 15pts | 🟠 Bordo: 5pts | ❌ Miss: -10pts</strong></p>
+            <button onclick="showLeaderboard()" style="margin-top: 10px;">🏆 Vedi Classifica</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">Punteggio: <span id="score">0</span></div>
+            <div class="stat-item">Livello: <span id="level">1</span></div>
+            <div class="stat-item">Vite: <span id="lives">3</span></div>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+        <div class="controls">
+            <button id="startBtn">🚀 Inizia</button>
+            <button id="pauseBtn" disabled>⏸️ Pausa</button>
+            <button id="restartBtn" disabled>🔄 Ricomincia</button>
+        </div>
+    </div>
+
+    <div class="leaderboard-modal" id="leaderboard">
+        <h2>🏆 Classifica Globale</h2>
+        <div class="firebase-warning">
+            ⚠️ <strong>Configurazione Firebase richiesta!</strong><br>
+            Segui le istruzioni sotto per attivare la classifica globale.
+        </div>
+        <div id="leaderboardContent">
+            <p>Caricamento...</p>
+        </div>
+        <div class="close-btn" onclick="hideLeaderboard()">✕ Chiudi</div>
+    </div>
+
+    <div class="game-over" id="gameOver">
+        <h2>🎮 Game Over!</h2>
+        <p>Punteggio finale: <span id="finalScore">0</span></p>
+        <p>Livello raggiunto: <span id="finalLevel">1</span></p>
+        <div>
+            <p>Salva il tuo punteggio nella classifica:</p>
+            <input type="text" id="playerName" placeholder="Il tuo nome" maxlength="20">
+            <br>
+            <button onclick="saveScore()">💾 Salva Punteggio</button>
+            <button onclick="restartGame()">🔄 Gioca Ancora</button>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        // 🔥 CONFIGURAZIONE FIREBASE - SOSTITUISCI CON I TUOI DATI
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getDatabase, ref, push, query, orderByChild, limitToLast, get } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+
+        // ⚠️ IMPORTANTE: Sostituisci questa configurazione con la tua da Firebase Console
+        const firebaseConfig = {
+            apiKey: "TUA_API_KEY_QUI",
+            authDomain: "tuo-progetto.firebaseapp.com",
+            databaseURL: "https://tuo-progetto-default-rtdb.firebaseio.com",
+            projectId: "tuo-progetto",
+            storageBucket: "tuo-progetto.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "1:123456789:web:abcdef123456"
+        };
+
+        let app, database;
+        let firebaseInitialized = false;
+
+        try {
+            app = initializeApp(firebaseConfig);
+            database = getDatabase(app);
+            firebaseInitialized = true;
+            document.querySelector('.firebase-warning').style.display = 'none';
+        } catch (error) {
+            console.warn('Firebase non configurato. La classifica sarà locale.');
+        }
+
+        // Rendi le funzioni disponibili globalmente
+        window.saveScoreToFirebase = async function(playerName, score, level) {
+            if (!firebaseInitialized) {
+                alert('Firebase non è configurato. Segui le istruzioni per attivare la classifica globale!');
+                return false;
+            }
+
+            try {
+                const scoresRef = ref(database, 'scores');
+                await push(scoresRef, {
+                    name: playerName,
+                    score: score,
+                    level: level,
+                    timestamp: Date.now(),
+                    date: new Date().toLocaleDateString('it-IT')
+                });
+                return true;
+            } catch (error) {
+                console.error('Errore nel salvare il punteggio:', error);
+                alert('Errore nel salvare il punteggio. Riprova!');
+                return false;
+            }
+        };
+
+        window.loadLeaderboard = async function() {
+            if (!firebaseInitialized) {
+                return [
+                    { name: "Configurazione", score: 0, level: 0, date: "Richiesta" },
+                    { name: "Segui le", score: 0, level: 0, date: "istruzioni" },
+                    { name: "sotto per", score: 0, level: 0, date: "attivare" },
+                    { name: "Firebase!", score: 0, level: 0, date: "🔥" }
+                ];
+            }
+
+            try {
+                const scoresRef = ref(database, 'scores');
+                const topScoresQuery = query(scoresRef, orderByChild('score'), limitToLast(50));
+                const snapshot = await get(topScoresQuery);
+                
+                const scores = [];
+                snapshot.forEach((childSnapshot) => {
+                    scores.push(childSnapshot.val());
+                });
+                
+                return scores.sort((a, b) => b.score - a.score).slice(0, 10);
+            } catch (error) {
+                console.error('Errore nel caricare la classifica:', error);
+                return [];
+            }
+        };
+    </script>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const gameOverDiv = document.getElementById('gameOver');
+        const leaderboardDiv = document.getElementById('leaderboard');
+
+        let game = {
+            isRunning: false,
+            isPaused: false,
+            score: 0,
+            level: 1,
+            lives: 3,
+            targets: [],
+            balls: [],
+            scorePopups: [],
+            lastTargetSpawn: 0,
+            targetSpawnDelay: 2000
+        };
+
+        class Ball {
+            constructor(startX, startY, targetX, targetY) {
+                this.x = startX;
+                this.y = startY;
+                this.radius = 8;
+                this.speed = 6;
+                
+                const dx = targetX - startX;
+                const dy = targetY - startY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                this.vx = (dx / distance) * this.speed;
+                this.vy = (dy / distance) * this.speed;
+                this.alive = true;
+            }
+
+            update() {
+                if (!this.alive) return;
+                
+                this.x += this.vx;
+                this.y += this.vy;
+                
+                if (this.x < 0 || this.x > canvas.width || this.y < 0 || this.y > canvas.height) {
+                    this.alive = false;
+                    game.score = Math.max(0, game.score - 10);
+                    game.scorePopups.push(new ScorePopup(canvas.width/2, 50, -10, true));
+                }
+            }
+
+            draw() {
+                if (!this.alive) return;
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#FFD700';
+                ctx.fill();
+                ctx.strokeStyle = '#FFA500';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        }
+
+        class Target {
+            constructor() {
+                this.radius = 40;
+                this.x = this.radius + Math.random() * (canvas.width - 2 * this.radius);
+                this.y = this.radius + Math.random() * (canvas.height - 2 * this.radius);
+                this.color = `hsl(${Math.random() * 360}, 70%, 60%)`;
+                this.alive = true;
+                this.lifeTime = 5000 - (game.level - 1) * 300;
+                this.birthTime = Date.now();
+                this.pulse = 0;
+            }
+
+            update() {
+                if (!this.alive) return;
+                
+                this.pulse += 0.1;
+                
+                if (Date.now() - this.birthTime > this.lifeTime) {
+                    this.alive = false;
+                    game.lives--;
+                }
+            }
+
+            draw() {
+                if (!this.alive) return;
+                
+                const pulseSize = Math.sin(this.pulse) * 3;
+                const r = this.radius + pulseSize;
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+                ctx.fillStyle = this.color + '30';
+                ctx.fill();
+                ctx.strokeStyle = this.color + '80';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, r * 0.75, 0, Math.PI * 2);
+                ctx.fillStyle = this.color + '50';
+                ctx.fill();
+                ctx.strokeStyle = '#4169E1';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, r * 0.5, 0, Math.PI * 2);
+                ctx.fillStyle = this.color + '70';
+                ctx.fill();
+                ctx.strokeStyle = '#32CD32';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, r * 0.25, 0, Math.PI * 2);
+                ctx.fillStyle = '#FFD700';
+                ctx.fill();
+                ctx.strokeStyle = '#FF6347';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                const timeLeft = Math.max(0, (this.lifeTime - (Date.now() - this.birthTime)) / this.lifeTime);
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, r + 5, -Math.PI/2, -Math.PI/2 + (2 * Math.PI * timeLeft));
+                ctx.strokeStyle = '#FF4444';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
+
+            hitTest(ball) {
+                if (!this.alive || !ball.alive) return null;
+                
+                const dx = ball.x - this.x;
+                const dy = ball.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance <= this.radius) {
+                    const hitRatio = distance / this.radius;
+                    
+                    if (hitRatio <= 0.25) return 50 * game.level;
+                    else if (hitRatio <= 0.5) return 30 * game.level;
+                    else if (hitRatio <= 0.75) return 15 * game.level;
+                    else return 5 * game.level;
+                }
+                
+                return null;
+            }
+        }
+
+        class ScorePopup {
+            constructor(x, y, score, isNegative = false) {
+                this.x = x;
+                this.y = y;
+                this.score = score;
+                this.isNegative = isNegative;
+                this.life = 80;
+                this.maxLife = 80;
+                this.vy = -1.5;
+            }
+
+            update() {
+                this.y += this.vy;
+                this.life--;
+                return this.life > 0;
+            }
+
+            draw() {
+                const alpha = this.life / this.maxLife;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.font = 'bold 20px Arial';
+                ctx.textAlign = 'center';
+                
+                if (this.isNegative) {
+                    ctx.fillStyle = '#FF4444';
+                    ctx.fillText(`${this.score}`, this.x, this.y);
+                } else if (this.score >= 50 * game.level) {
+                    ctx.fillStyle = '#FFD700';
+                    ctx.fillText(`+${this.score} BULLSEYE!`, this.x, this.y);
+                } else if (this.score >= 30 * game.level) {
+                    ctx.fillStyle = '#32CD32';
+                    ctx.fillText(`+${this.score} Ottimo!`, this.x, this.y);
+                } else if (this.score >= 15 * game.level) {
+                    ctx.fillStyle = '#4169E1';
+                    ctx.fillText(`+${this.score} Buono`, this.x, this.y);
+                } else {
+                    ctx.fillStyle = '#FFA500';
+                    ctx.fillText(`+${this.score}`, this.x, this.y);
+                }
+                ctx.restore();
+            }
+        }
+
+        function spawnTarget() {
+            let attempts = 0;
+            while (attempts < 20) {
+                const target = new Target();
+                let overlap = false;
+                
+                for (let existing of game.targets) {
+                    const dx = target.x - existing.x;
+                    const dy = target.y - existing.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < target.radius + existing.radius + 30) {
+                        overlap = true;
+                        break;
+                    }
+                }
+                
+                if (!overlap) {
+                    game.targets.push(target);
+                    break;
+                }
+                attempts++;
+            }
+        }
+
+        function updateGame() {
+            if (!game.isRunning || game.isPaused) return;
+            
+            const now = Date.now();
+            if (now - game.lastTargetSpawn > game.targetSpawnDelay && game.targets.length < 3) {
+                spawnTarget();
+                game.lastTargetSpawn = now;
+            }
+            
+            for (let i = game.balls.length - 1; i >= 0; i--) {
+                game.balls[i].update();
+                if (!game.balls[i].alive) {
+                    game.balls.splice(i, 1);
+                }
+            }
+            
+            for (let i = game.targets.length - 1; i >= 0; i--) {
+                game.targets[i].update();
+                if (!game.targets[i].alive) {
+                    game.targets.splice(i, 1);
+                }
+            }
+            
+            for (let i = game.balls.length - 1; i >= 0; i--) {
+                for (let j = game.targets.length - 1; j >= 0; j--) {
+                    const points = game.targets[j].hitTest(game.balls[i]);
+                    if (points !== null) {
+                        game.score += points;
+                        game.scorePopups.push(new ScorePopup(game.targets[j].x, game.targets[j].y, points));
+                        
+                        game.balls.splice(i, 1);
+                        game.targets.splice(j, 1);
+                        
+                        const newLevel = Math.floor(game.score / 200) + 1;
+                        if (newLevel > game.level) {
+                            game.level = newLevel;
+                            game.targetSpawnDelay = Math.max(500, 2000 - (game.level - 1) * 150);
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            game.scorePopups = game.scorePopups.filter(popup => popup.update());
+            
+            if (game.lives <= 0) {
+                endGame();
+            }
+        }
+
+        function draw() {
+            ctx.fillStyle = 'rgba(0, 20, 40, 0.3)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            game.targets.forEach(target => target.draw());
+            game.balls.forEach(ball => ball.draw());
+            game.scorePopups.forEach(popup => popup.draw());
+            
+            if (game.isPaused) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'white';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('⏸️ PAUSA', canvas.width / 2, canvas.height / 2);
+            }
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = game.score;
+            document.getElementById('level').textContent = game.level;
+            document.getElementById('lives').textContent = game.lives;
+        }
+
+        function startGame() {
+            game.isRunning = true;
+            game.isPaused = false;
+            game.lastTargetSpawn = Date.now();
+            
+            startBtn.disabled = true;
+            pauseBtn.disabled = false;
+            restartBtn.disabled = false;
+            
+            spawnTarget();
+        }
+
+        function pauseGame() {
+            if (!game.isRunning) return;
+            
+            game.isPaused = !game.isPaused;
+            pauseBtn.textContent = game.isPaused ? '▶️ Riprendi' : '⏸️ Pausa';
+        }
+
+        function restartGame() {
+            game = {
+                isRunning: false,
+                isPaused: false,
+                score: 0,
+                level: 1,
+                lives: 3,
+                targets: [],
+                balls: [],
+                scorePopups: [],
+                lastTargetSpawn: 0,
+                targetSpawnDelay: 2000
+            };
+            
+            startBtn.disabled = false;
+            pauseBtn.disabled = true;
+            pauseBtn.textContent = '⏸️ Pausa';
+            restartBtn.disabled = true;
+            gameOverDiv.style.display = 'none';
+            
+            updateUI();
+        }
+
+        function endGame() {
+            game.isRunning = false;
+            
+            document.getElementById('finalScore').textContent = game.score;
+            document.getElementById('finalLevel').textContent = game.level;
+            gameOverDiv.style.display = 'block';
+            
+            startBtn.disabled = false;
+            pauseBtn.disabled = true;
+            pauseBtn.textContent = '⏸️ Pausa';
+        }
+
+        function shootBall(targetX, targetY) {
+            if (!game.isRunning || game.isPaused) return;
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            game.balls.push(new Ball(centerX, centerY, targetX, targetY));
+        }
+
+        async function saveScore() {
+            const playerName = document.getElementById('playerName').value.trim();
+            
+            if (!playerName) {
+                alert('Inserisci il tuo nome!');
+                return;
+            }
+
+            const saved = await window.saveScoreToFirebase(playerName, game.score, game.level);
+            
+            if (saved) {
+                alert('Punteggio salvato! 🎉');
+                gameOverDiv.style.display = 'none';
+                await showLeaderboard();
+            }
+        }
+
+        async function showLeaderboard() {
+            leaderboardDiv.style.display = 'block';
+            const content = document.getElementById('leaderboardContent');
+            content.innerHTML = '<p>Caricamento...</p>';
+            
+            const scores = await window.loadLeaderboard();
+            
+            if (scores.length === 0) {
+                content.innerHTML = '<p>Nessun punteggio ancora. Sii il primo!</p>';
+                return;
+            }
+            
+            let html = '';
+            scores.forEach((score, index) => {
+                const rank = index + 1;
+                const rankClass = rank <= 3 ? `rank-${rank}` : '';
+                const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+                
+                html += `
+                    <div class="leaderboard-entry ${rankClass}">
+                        <span class="rank">${medal} #${rank}</span>
+                        <span class="player-name">${score.name}</span>
+                        <span class="player-score">${score.score} pts (Lv.${score.level})</span>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html;
+        }
+
+        function hideLeaderboard() {
+            leaderboardDiv.style.display = 'none';
+        }
+
+        startBtn.addEventListener('click', startGame);
+        pauseBtn.addEventListener('click', pauseGame);
+        restartBtn.addEventListener('click', restartGame);
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            shootBall(x, y);
+        });
+
+        function gameLoop() {
+            updateGame();
+            draw();
+            updateUI();
+            requestAnimationFrame(gameLoop);
+        }
+
+        updateUI();
+        gameLoop();
+    </script>
+</body>
+</html>
